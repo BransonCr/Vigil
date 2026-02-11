@@ -1,0 +1,99 @@
+@startuml data-model
+title Data Model — Vigil NIDS
+
+skinparam linetype ortho
+
+class Packet {
+    + timestamp: DateTime
+    + src_ip: IpAddr
+    + dst_ip: IpAddr
+    + src_port: u16
+    + dst_port: u16
+    + protocol: Protocol
+    + flags: TcpFlags
+    + payload_len: u32
+    + ttl: u8
+}
+
+class Flow {
+    + flow_id: Uuid
+    + src_ip: IpAddr
+    + dst_ip: IpAddr
+    + src_port: u16
+    + dst_port: u16
+    + protocol: Protocol
+    + started_at: DateTime
+    + last_seen_at: DateTime
+    + packet_count: u64
+    + byte_count: u64
+    ' Statistical baseline fields
+    + avg_packet_len: f64
+    + avg_inter_arrival_ms: f64
+    + syn_count: u32
+    + fin_count: u32
+}
+
+class Alert {
+    + alert_id: Uuid
+    + flow_id: Uuid
+    + created_at: DateTime
+    + alert_kind: AlertKind
+    + severity: Severity
+    + title: String
+    + detail: String
+    + llm_summary: Option<String>
+}
+
+enum AlertKind {
+    SignatureMatch
+    AnomalyDetected
+}
+
+enum Severity {
+    Low
+    Medium
+    High
+    Critical
+}
+
+class Signature {
+    + signature_id: Uuid
+    + name: String
+    + category: SignatureCategory
+    + description: String
+    + severity: Severity
+    ' Matching criteria (serialised rule DSL)
+    + rule: String
+}
+
+enum SignatureCategory {
+    PortScan
+    SynFlood
+    DnsTunneling
+    BruteForce
+    DataExfiltration
+    Other
+}
+
+class AnomalyRecord {
+    + record_id: Uuid
+    + flow_id: Uuid
+    + detected_at: DateTime
+    + metric: String
+    + baseline_value: f64
+    + observed_value: f64
+    + deviation_sigma: f64
+}
+
+' Relationships
+Flow "1" o-- "0..*" Packet : contains >
+Alert "0..*" --> "1" Flow : relates to >
+Alert "0..1" --> "1" Signature : matched by >
+AnomalyRecord "0..*" --> "1" Flow : recorded for >
+Alert "0..1" --> "0..1" AnomalyRecord : based on >
+Alert ..> AlertKind
+Alert ..> Severity
+Signature ..> SignatureCategory
+Signature ..> Severity
+
+@enduml

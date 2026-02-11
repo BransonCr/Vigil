@@ -1,0 +1,21 @@
+@startuml system-context
+title System Context — Vigil NIDS
+
+skinparam actorStyle awesome
+skinparam defaultTextAlignment center
+skinparam rectangleFontSize 13
+
+actor "Security\nAnalyst" as analyst
+
+rectangle "Network Interface\n(libpcap / promiscuous mode)" as nic #d5e8d4
+rectangle "Vigil NIDS\n\nCaptures raw traffic, detects threats via\nsignature matching and statistical anomaly\ndetection, enriches alerts with LLM summaries,\nand exposes a REST API and web dashboard." as vigil #dae8fc
+rectangle "Claude API\n(Anthropic)" as claude #d5e8d4
+rectangle "Web Browser\n(Dashboard)" as browser #d5e8d4
+
+nic --> vigil : raw packet stream\n(pcap / promiscuous)
+vigil --> claude : alert context\n(HTTPS)
+claude --> vigil : incident summary\n(HTTPS)
+analyst --> browser : views alerts and\ninvestigates incidents
+browser --> vigil : query alerts and flows\n(HTTP REST)
+
+@enduml

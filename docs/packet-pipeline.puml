@@ -1,0 +1,74 @@
+@startuml packet-pipeline
+title Packet-to-Alert Pipeline — Sequence Diagram
+
+participant "NIC\n(libpcap)" as NIC
+participant "Packet\nCapture" as Cap
+participant "Protocol\nParser" as Parse
+participant "Flow\nTracker" as Flow
+participant "Signature\nEngine" as Sig
+participant "Anomaly\nDetector" as Anom
+participant "Alert\nManager" as AM
+participant "LLM Enrichment\nService" as LLM
+participant "Claude\nAPI" as Claude
+participant "Alert\nStore" as Store
+participant "REST\nAPI" as API
+
+NIC -> Cap : raw Ethernet frame
+activate Cap
+
+Cap -> Parse : frame bytes
+activate Parse
+Parse -> Parse : decode Ethernet/IP/TCP/UDP/DNS
+Parse --> Cap : Packet { src_ip, dst_ip, sport, dport,\nprotocol, flags, payload_len, timestamp }
+deactivate Parse
+
+Cap -> Flow : Packet
+activate Flow
+Flow -> Flow : lookup flow by 5-tuple\n(or create new entry)
+Flow -> Flow : update counters, timing,\nbyte distribution
+deactivate Cap
+
+par run detection engines in parallel
+    Flow -> Sig : FlowSnapshot
+    activate Sig
+    Sig -> Sig : evaluate signature rules\n(port scan, SYN flood, DNS tunnel…)
+    alt signature matched
+        Sig --> AM : SignatureAlert { rule_id, severity, flow_id }
+    end
+    deactivate Sig
+
+    Flow -> Anom : FlowSnapshot
+    activate Anom
+    Anom -> Anom : compare metrics against baseline\n(packet rate, IAT, byte dist.)
+    alt deviation exceeds threshold
+        Anom --> AM : AnomalyAlert { metric, delta, flow_id }
+    end
+    deactivate Anom
+end
+deactivate Flow
+
+activate AM
+AM -> AM : deduplicate & assign severity
+
+AM -> LLM : AlertContext { alert_type, flow_summary,\nsignature/anomaly detail }
+activate LLM
+LLM -> Claude : POST /v1/messages\n(structured prompt)
+activate Claude
+Claude --> LLM : incident summary (plain English)
+deactivate Claude
+LLM --> AM : summary string
+deactivate LLM
+
+AM -> Store : INSERT enriched Alert
+activate Store
+Store --> AM : alert_id
+deactivate Store
+deactivate AM
+
+... (later, analyst queries dashboard) ...
+
+API -> Store : SELECT alerts WHERE …
+Store --> API : Alert[]
+API --> API : JSON response to client
+
+@enduml

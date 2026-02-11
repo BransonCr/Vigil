@@ -1,0 +1,177 @@
+@startuml component
+title Component Architecture — Vigil NIDS\nSOLID Design Principles
+
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultTextAlignment left
+
+' ================================================================
+' ABSTRACTIONS
+' ISP — small, focused traits so components only see what they need
+' DIP — every cross-layer dependency points at a trait, not a type
+' ================================================================
+
+package "Abstractions  [ISP / DIP]" #FFFACD {
+
+  interface PacketSource <<trait>> {
+    + next_packet() : Option<Packet>
+  }
+
+  interface Detector <<trait>> {
+    + inspect(flow: &FlowSnapshot) : Option<RawAlert>
+  }
+
+  interface SummaryProvider <<trait>> {
+    + summarize(ctx: &AlertContext) : String
+  }
+
+  interface AlertRepository <<trait>> {
+    + save(alert: &Alert) : AlertId
+    + query(filter: &AlertFilter) : Vec<Alert>
+  }
+}
+
+' ================================================================
+' CAPTURE LAYER
+' SRP — PacketCapture only opens the NIC and feeds raw bytes;
+'        ProtocolParser only decodes protocol layers
+' ================================================================
+
+package "Capture Layer  [SRP]" #DDEEFF {
+
+  class PacketCapture {
+    - handle: pcap::Capture
+    + open(iface: &str) : Self
+    + next_packet() : Option<Packet>
+  }
+
+  class ProtocolParser {
+    + parse(frame: &[u8]) : Option<Packet>
+  }
+
+  PacketCapture ..|> PacketSource
+  PacketCapture --> ProtocolParser : delegates parsing
+}
+
+' ================================================================
+' FLOW LAYER
+' SRP — only aggregates packets into bidirectional flows
+' DIP — consumes PacketSource, not a concrete capture type
+' ================================================================
+
+package "Flow Layer  [SRP / DIP]" #DDEEFF {
+
+  class FlowTracker {
+    - flows: HashMap<FiveTuple, Flow>
+    + update(pkt: Packet) : FlowSnapshot
+  }
+
+  FlowTracker ..> PacketSource : consumes
+}
+
+' ================================================================
+' DETECTION LAYER
+' OCP — DetectionEngine is closed for modification but open for
+'        extension: register new Detector impls at startup
+' LSP — SignatureEngine and AnomalyDetector are fully
+'        substitutable wherever a Detector is expected
+' ================================================================
+
+package "Detection Layer  [OCP / LSP]" #FFDDE5 {
+
+  class DetectionEngine {
+    - detectors: Vec<Box<dyn Detector>>
+    + register(d: impl Detector)
+    + run(snap: &FlowSnapshot) : Vec<RawAlert>
+  }
+
+  class SignatureEngine {
+    - rules: Vec<Signature>
+    + inspect(flow: &FlowSnapshot) : Option<RawAlert>
+  }
+
+  class AnomalyDetector {
+    - baselines: HashMap<FiveTuple, Baseline>
+    + inspect(flow: &FlowSnapshot) : Option<RawAlert>
+  }
+
+  SignatureEngine  ..|> Detector
+  AnomalyDetector ..|> Detector
+  DetectionEngine "1" o--> "*" Detector : dispatches to
+}
+
+' ================================================================
+' ALERT LAYER
+' SRP — AlertManager only deduplicates, prioritises, and routes
+' DIP — depends on SummaryProvider and AlertRepository traits,
+'        not on LlmEnrichmentService or SqliteAlertStore directly
+' ================================================================
+
+package "Alert Layer  [SRP / DIP]" #DDFFD4 {
+
+  class AlertManager {
+    - summarizer: Box<dyn SummaryProvider>
+    - repo: Box<dyn AlertRepository>
+    + dispatch(raw: RawAlert)
+  }
+
+  AlertManager ..> SummaryProvider  : enriches via
+  AlertManager ..> AlertRepository  : persists via
+}
+
+' ================================================================
+' ENRICHMENT LAYER
+' SRP — only responsible for producing plain-English summaries
+' ================================================================
+
+package "Enrichment Layer  [SRP]" #F5E6FF {
+
+  class LlmEnrichmentService {
+    - http: reqwest::Client
+    - api_key: String
+    + summarize(ctx: &AlertContext) : String
+  }
+
+  LlmEnrichmentService ..|> SummaryProvider
+}
+
+' ================================================================
+' STORAGE LAYER
+' SRP — only handles persistence of alerts and flows
+' ================================================================
+
+package "Storage Layer  [SRP]" #FFF3CC {
+
+  class SqliteAlertStore {
+    - pool: sqlx::SqlitePool
+    + save(alert: &Alert) : AlertId
+    + query(filter: &AlertFilter) : Vec<Alert>
+  }
+
+  SqliteAlertStore ..|> AlertRepository
+}
+
+' ================================================================
+' API LAYER
+' SRP — only handles HTTP serving
+' DIP — depends on AlertRepository trait, not SqliteAlertStore
+' ================================================================
+
+package "API Layer  [SRP / DIP]" #E0F7FA {
+
+  class RestApi {
+    - repo: Arc<dyn AlertRepository>
+    + serve(addr: SocketAddr)
+  }
+
+  RestApi ..> AlertRepository : reads via
+}
+
+' ================================================================
+' Runtime data flow (does not affect SOLID structure above)
+' ================================================================
+
+FlowTracker    --> DetectionEngine : FlowSnapshot
+DetectionEngine --> AlertManager   : RawAlert
+
+@enduml
