@@ -4,6 +4,22 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-pcap = "1.3"
-pnet = "0.35"
-chrono = "0.4"
+# Packet capture & protocol decoding
+pcap    = "1.3"
+pnet    = "0.35"
+
+# Async runtime & HTTP API
+tokio   = { version = "1", features = ["full"] }
+axum    = "0.7"
+
+# Persistence
+sqlx    = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
+
+# LLM enrichment HTTP client
+reqwest = { version = "0.12", features = ["json"] }
+
+# Shared utilities
+uuid    = { version = "1", features = ["v4", "serde"] }
+chrono  = { version = "0.4", features = ["serde"] }
+serde   = { version = "1",  features = ["derive"] }
+serde_json = "1"
