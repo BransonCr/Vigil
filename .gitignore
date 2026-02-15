@@ -1,1 +1,23 @@
 /target
+
+# Environment
+.env
+.env.*
+
+# SQLite databases
+*.db
+*.db-shm
+*.db-wal
+
+# IDEs
+.idea/
+.vscode/
+
+# Editor swap files
+*.swp
+
+# macOS
+.DS_Store
+
+# AI
+CLAUDE.md

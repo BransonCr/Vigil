@@ -1,0 +1,57 @@
+@startuml module-dependency
+
+title Vigil — Rust Module Dependency Graph
+
+skinparam componentStyle rectangle
+skinparam padding 8
+
+package "src/" {
+    [main.rs] as main <<composition root>>
+    [lib.rs] as lib <<module host>>
+
+    [models] as models <<leaf>>
+    [capture] as capture
+    [flow] as flow
+    [detection] as detection
+    [alert] as alert
+    [enrichment] as enrichment
+    [storage] as storage
+    [api] as api
+}
+
+main --> lib : uses
+
+lib --> models
+lib --> capture
+lib --> flow
+lib --> detection
+lib --> alert
+lib --> enrichment
+lib --> storage
+lib --> api
+
+capture --> models
+flow --> models
+detection --> models
+alert --> models
+enrichment --> models
+storage --> models
+api --> models
+
+alert --> enrichment
+alert --> storage
+api --> storage
+
+note bottom of models
+  Leaf module — no outward dependencies.
+  Defines Packet, Flow, Alert, Signature,
+  AnomalyRecord, and all enums/traits.
+end note
+
+note top of main
+  Composition root — wires concrete
+  implementations to trait objects
+  and starts the tokio runtime.
+end note
+
+@enduml

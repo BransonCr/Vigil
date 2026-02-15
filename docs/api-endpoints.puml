@@ -1,0 +1,37 @@
+@startuml api-endpoints
+
+title Vigil — REST API Endpoints
+
+object "GET /api/health" as health {
+    description = "Liveness check"
+    response = "200 OK"
+}
+
+object "GET /api/alerts" as alerts {
+    description = "List all alerts"
+    query_params = "?severity=&kind=&limit=&offset="
+    response = "200 JSON array of Alert"
+}
+
+object "GET /api/alerts/{id}" as alert {
+    description = "Get a single alert by ID"
+    response = "200 JSON Alert | 404"
+}
+
+object "GET /api/flows" as flows {
+    description = "List tracked flows"
+    query_params = "?active=&limit=&offset="
+    response = "200 JSON array of Flow"
+}
+
+object "GET /api/flows/{id}" as flow {
+    description = "Get a single flow by ID"
+    response = "200 JSON Flow | 404"
+}
+
+health -[hidden]down- alerts
+alerts -[hidden]down- alert
+alert -[hidden]down- flows
+flows -[hidden]down- flow
+
+@enduml

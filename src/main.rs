@@ -1,13 +1,13 @@
-mod alert;
-mod api;
-mod capture;
-mod detection;
-mod enrichment;
-mod flow;
-mod models;
-mod storage;
+use vigil::*;
 
 #[tokio::main]
 async fn main() {
-    println!("vigil starting");
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .init();
+
+    tracing::info!("vigil starting");
 }
