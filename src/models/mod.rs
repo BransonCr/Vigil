@@ -228,31 +228,33 @@ pub struct AnomalyRecord {
 // Traits
 // ---------------------------------------------------------------------------
 
+use std::future::Future;
+use std::pin::Pin;
+
+/// Convenience alias for a boxed, Send-able future (used by dyn-compatible traits).
+pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+
 #[allow(async_fn_in_trait)]
 pub trait PacketSource {
     async fn next_packet(&mut self) -> Result<Option<Packet>>;
 }
 
-#[allow(async_fn_in_trait)]
 pub trait Detector: Send + Sync {
-    async fn inspect(&self, flow: &FlowSnapshot) -> Result<Option<RawAlert>>;
+    fn inspect<'a>(&'a self, flow: &'a FlowSnapshot) -> BoxFuture<'a, Result<Option<RawAlert>>>;
 }
 
-#[allow(async_fn_in_trait)]
 pub trait SummaryProvider: Send + Sync {
-    async fn summarize(&self, ctx: &AlertContext) -> Result<String>;
+    fn summarize<'a>(&'a self, ctx: &'a AlertContext) -> BoxFuture<'a, Result<String>>;
 }
 
-#[allow(async_fn_in_trait)]
 pub trait AlertRepository: Send + Sync {
-    async fn save(&self, alert: &Alert) -> Result<Uuid>;
-    async fn find_by_id(&self, id: Uuid) -> Result<Option<Alert>>;
-    async fn query(&self, filter: &AlertFilter) -> Result<Vec<Alert>>;
+    fn save<'a>(&'a self, alert: &'a Alert) -> BoxFuture<'a, Result<Uuid>>;
+    fn find_by_id<'a>(&'a self, id: Uuid) -> BoxFuture<'a, Result<Option<Alert>>>;
+    fn query<'a>(&'a self, filter: &'a AlertFilter) -> BoxFuture<'a, Result<Vec<Alert>>>;
 }
 
-#[allow(async_fn_in_trait)]
 pub trait FlowRepository: Send + Sync {
-    async fn save(&self, flow: &Flow) -> Result<()>;
-    async fn find_by_id(&self, id: Uuid) -> Result<Option<Flow>>;
-    async fn list(&self, limit: i64, offset: i64) -> Result<Vec<Flow>>;
+    fn save<'a>(&'a self, flow: &'a Flow) -> BoxFuture<'a, Result<()>>;
+    fn find_by_id<'a>(&'a self, id: Uuid) -> BoxFuture<'a, Result<Option<Flow>>>;
+    fn list<'a>(&'a self, limit: i64, offset: i64) -> BoxFuture<'a, Result<Vec<Flow>>>;
 }

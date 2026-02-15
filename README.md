@@ -11,7 +11,7 @@ Vigil captures raw packets off a network interface, groups them into flows, and 
 
 When an alert is triggered, vigil calls an LLM API to produce a human-readable incident summary explaining what happened, why it's suspicious, and what to do about it.
 
-Alerts are persisted to a local database and exposed through a REST API, with a web dashboard for real-time visibility.
+Alerts are persisted to a local database and exposed through a REST API. A built-in terminal dashboard (TUI) provides real-time visibility without leaving the command line.
 
 ## How Vigil Works
 
@@ -57,6 +57,7 @@ The LLM layer bridges the gap between raw alert data and actionable insight, mak
 - **pcap / pnet** — raw packet capture and protocol decoding
 - **tokio + axum** — async runtime and HTTP API
 - **sqlx + SQLite** — alert and flow storage
+- **ratatui** — terminal UI dashboard
 - **Claude API** — LLM-powered incident summaries
 
 ## Architecture
@@ -82,6 +83,7 @@ The codebase is split into focused layers, each with a single responsibility. Cr
 | **Enrichment** | Calls the Claude API with structured alert context and returns a plain-English incident summary |
 | **Storage** | Persists alerts and flows to SQLite via sqlx |
 | **API** | Serves the REST API over axum; reads from storage through the `AlertRepository` trait |
+| **TUI** | Live terminal dashboard (ratatui) showing flows, alerts, and packet stats; runs on a dedicated OS thread |
 
 The key abstractions are four traits defined in the `Abstractions` layer:
 
@@ -153,6 +155,39 @@ cargo build --release
 sudo target/release/vigil
 ```
 
+### Terminal UI
+
+Vigil includes a live terminal dashboard built with ratatui. Enable it with the `VIGIL_TUI` environment variable:
+
+```bash
+# Live capture with TUI
+sudo VIGIL_TUI=1 target/release/vigil
+
+# Replay a pcap file with TUI
+VIGIL_TUI=1 VIGIL_PCAP=tests/fixtures/brute_force.pcap cargo run
+```
+
+The dashboard displays:
+
+- **Header** — uptime, live packet/flow/alert counters
+- **Flows table** — active flows with protocol, source/destination, packet and byte counts
+- **Alerts table** — triggered alerts color-coded by severity (Critical, High, Medium, Low)
+- **Detail pane** — full details for a selected flow or alert (including LLM summary if available)
+
+Keybinds:
+
+| Key | Action |
+|---|---|
+| `q` / `Ctrl+C` | Quit and restore terminal |
+| `Tab` / `Shift+Tab` | Cycle between panels (Flows → Alerts → Detail) |
+| `j` / `k` / `↑` / `↓` | Navigate rows in the active table |
+| `Enter` | Open detail view for selected item |
+| `Esc` | Close detail view |
+| `s` | Cycle sort column |
+| `S` | Toggle sort direction |
+
+When TUI mode is active, log output is redirected to `vigil.log` in the working directory. Without `VIGIL_TUI`, Vigil behaves as before — logging to stderr with no terminal UI.
+
 ## Configuration
 
 Vigil is configured through environment variables:
@@ -161,8 +196,10 @@ Vigil is configured through environment variables:
 |---|---|---|
 | `VIGIL_INTERFACE` | Network interface to capture on | `eth0` |
 | `VIGIL_DB_PATH` | Path to the SQLite database file | `vigil.db` |
-| `ANTHROPIC_API_KEY` | Anthropic API key for LLM enrichment | *(required)* |
+| `ANTHROPIC_API_KEY` | Anthropic API key for LLM enrichment | *(optional)* |
 | `VIGIL_API_ADDR` | Address and port for the REST API | `127.0.0.1:3000` |
+| `VIGIL_TUI` | Enable terminal dashboard (`1` or `true`) | disabled |
+| `VIGIL_PCAP` | Path to a pcap file for offline replay | *(live capture)* |
 | `RUST_LOG` | Log level filter (uses `tracing-subscriber` `EnvFilter`) | `info` |
 
 ## Testing
@@ -175,7 +212,7 @@ Integration tests will use pcap replay fixtures (stored in `tests/fixtures/`) to
 
 ## Project Status
 
-Vigil's module structure, data model, and architecture are defined. All 8 source modules (`models`, `capture`, `flow`, `detection`, `alert`, `enrichment`, `storage`, `api`) exist but implementation is in progress. The project compiles and the test harness runs, but there is no runtime functionality yet.
+Vigil is functional end-to-end. All 9 modules (`models`, `capture`, `flow`, `detection`, `alert`, `enrichment`, `storage`, `api`, `tui`) are implemented with 81 passing tests (unit + integration). The pipeline captures packets, assembles flows, runs detection, enriches alerts via LLM, persists to SQLite, and serves results through both a REST API and a live terminal dashboard.
 
 ## Contributing
 

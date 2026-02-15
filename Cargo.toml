@@ -38,10 +38,17 @@ serde_json = "1"
 # Error handling
 thiserror = "2"
 
+# Terminal UI
+ratatui = "0.30"
+
 # Structured logging
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tracing-appender = "0.2"
 
 [dev-dependencies]
 tempfile = "3"
 tokio = { version = "1", features = ["test-util", "macros"] }
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+libc = "0.2"
